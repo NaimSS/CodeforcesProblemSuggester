@@ -1,4 +1,22 @@
 
+function shuffle(array) {
+    let currentIndex = array.length,  randomIndex;
+  
+    // While there remain elements to shuffle.
+    while (currentIndex != 0) {
+  
+      // Pick a remaining element.
+      randomIndex = Math.floor(Math.random() * currentIndex);
+      currentIndex--;
+  
+      // And swap it with the current element.
+      [array[currentIndex], array[randomIndex]] = [
+        array[randomIndex], array[currentIndex]];
+    }
+  
+    return array;
+}
+
 async function sendRequest(url){
     const res = await fetch(url);
     const data = await res.json();
@@ -12,26 +30,20 @@ function getSubmissions(user){ // ONLY 10 last for debug
 
 //https://codeforces.com/api/contest.status?contestId=566&handle=huangxiaohua
 
-class Contest{
-    constructor(id,name,data){
-        this.id = id;
-        this.name = name;
-        this.data = data;
-    }
-};
-
-function compareContest(a,b){
-    if(a.data > b.data)return -1;
-    if(a.data < b.data)return 1;
-    return 0;
+function getProblemId(problem){
+    if(problem.contestId===undefined)return "BAD";
+    return problem.contestId.toString()+problem.index;
 }
 
-async function getGyms(v,gyms){
+async function getProblems(v,problems,rangeL,rangeR){
     const mapa = new Map();
     const idBom = new Map();
 
-    for(let i=0;i<gyms.length;i++){
-        idBom.set(gyms[i].id,1);
+    for(let i=0;i<problems.length;i++){
+        if(problems[i].rating == undefined)continue;
+        if(problems[i].rating<rangeL)continue;
+        if(problems[i].rating>rangeR)continue;
+        idBom.set(getProblemId(problems[i]),1);
     }
 
     let tam=v.length;
@@ -47,98 +59,84 @@ async function getGyms(v,gyms){
                     
                     for(let j=0;j<data.result.length;j++){
                     
-                        if(idBom.get(data.result[j].contestId)!=undefined){
-                            
-                            if(mapa.get(data.result[j].contestId)==undefined){
-                                mapa.set(data.result[j].contestId,data.result[j].creationTimeSeconds);
-                            }
-                            
-                            let curT = mapa.get(data.result[j].contestId);
-                            let nv = vet[j].creationTimeSeconds;
-
-                            if(curT > nv){
-                                mapa.set(data.result[j].contestId,vet[j].creationTimeSeconds);
-                            }
+                        if(idBom.get(getProblemId(data.result[j].problem))!=undefined){
+                            idBom.set(getProblemId(data.result[j].problem),0);
                         }
                     }
                 }
             }
         );
     }
-    return mapa;
-}
-
-function pegarDia(data){
-    var a = new Date(data * 1000);
-    var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-    var year = a.getFullYear();
-    var month = months[a.getMonth()];
-    var date = a.getDate();
-    var time = date + ' ' + month + ' ' + year;
-    return time;
-}
-
-function gymUrl(data,id,name){
-    return "<p> " + data + ": " + "<a href = " + '"' + "https://codeforces.com/gym/" + id + '"' + ">"+ name +"</a><br></p>";
-}
-
-
-
-function main(gyms){
-
-    let v1 = JSON.parse(localStorage.getItem('stalk'));
-    let v2 = JSON.parse(localStorage.getItem('you'));
-
-    console.log(v1);
-    console.log(v2);
-
-    const nomes = new Map();
-    for(const obj of gyms.result){
-        nomes.set(obj.id,obj.name);
+    var arr = []
+    for(const [key,value] of idBom){
+        if(value == 1)arr.push(key);
     }
 
-    let vec = [];
-    let tam = 0;
-    getGyms(v1,gyms.result).then(
-        mapa1 =>{
-            getGyms(v2,gyms.result).then(
-                mapa2 =>{
-                    console.log(mapa1);
-                    console.log(mapa2);
+    var shuffled = shuffle(arr);
+    var resp = []
+    for(let i=0;i<30 && i<shuffled.length;i++)
+        resp.push(shuffled[i]);
+    return resp;
+}
 
-                    for(const [key,value] of mapa1){
+function getProblemUrl(problem){
+    for(let i=0;i<problem.length;i++){
+        if(problem[i]>='A' && problem[i]<='Z'){
+            var j=0;
+            let contestId = problem.substring(0,i)
+            let index = problem.substring(i);
 
-                        if(mapa2.get(key)==undefined){
-                            // nice :)
-                            //document.write(gymUrl(key,nomes.get(key)));
-                            vec[tam] = new Contest(key,nomes.get(key),value);
-                            tam++;
-                        }
-                    }
+            return 'https://codeforces.com/contest/'+contestId+'/problem/'+index;
+        }
+    }
+    return 'https://www.youtube.com/watch?v=dQw4w9WgXcQ'
+}
 
-                    vec.sort(compareContest);
-                    document.getElementById('PLZ').innerHTML = "";
-                    document.write("<h1> Found " +  vec.length + " gyms </h1>");
-                    for(let i=0;i<vec.length;i++){
-                        document.write(gymUrl(pegarDia(vec[i].data),vec[i].id,vec[i].name));
-                    }
+function problemLink(nome,rating,problem){
+    return "<p>" + nome + ": "+"<a href = "+'"'+getProblemUrl(problem)+'"'+">" + problem +", rating : "+rating+ "</a><br></p>";
+}
 
-                }
-            );
+function main(problems){
+
+    let v1 = JSON.parse(localStorage.getItem('handles'));
+    let rangeL = JSON.parse(localStorage.getItem('minimum rating'));
+    let rangeR = JSON.parse(localStorage.getItem('maximum rating'));
+    
+
+    console.log(v1);
+    console.log(rangeL);
+    console.log(rangeR);
+
+
+    const names = new Map();
+    const rating = new Map();
+    for(let i=0;i<problems.length;i++){
+        names.set(getProblemId(problems[i]),problems[i].name);
+        rating.set(getProblemId(problems[i]),problems[i].rating);
+    }
+
+    getProblems(v1,problems,rangeL,rangeR).then(
+        arr =>{
+            console.log(arr);
+            document.getElementById('PLZ').innerHTML = "";
+            document.write("<h1> Found some cool problems </h1>");
+            for(let i=0;i<arr.length;i++){
+                document.write(problemLink(names.get(arr[i]),rating.get(arr[i]),arr[i]));
+            }
         }
     );
 
 }
 
-async function retornaGyms(){
-    return await sendRequest('https://codeforces.com/api/contest.list?gym=true');
+async function retornaProblemset(){
+    return await sendRequest('https://codeforces.com/api/problemset.problems');
 }
 function runScript(){ 
     document.write('<p id = "PLZ">Please Wait<\p>');
     
-    retornaGyms().then(
-        gyms =>{
-            main(gyms);
+    retornaProblemset().then(
+        problems =>{
+            main(problems.result.problems);
         }
     );
 }
